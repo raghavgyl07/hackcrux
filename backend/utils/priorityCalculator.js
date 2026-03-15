@@ -14,8 +14,8 @@ const PRIORITY_LEVELS = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 const LEVEL_MAP = { 'CRITICAL': 4, 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
 
 const DEPARTMENTS = [
-  'Cardiology', 'Orthopedics', 'Dermatology', 'Neurology', 
-  'Pulmonology', 'General Medicine', 'Emergency Medicine', 'ENT'
+  'Cardiology', 'Neurology', 'Orthopedics', 'Dermatology', 
+  'General Medicine', 'Pediatrics', 'ENT'
 ];
 
 async function assignPriority(age, symptoms, registrationTime, visualFindings = null, historicalExamples = []) {
@@ -59,9 +59,8 @@ Department: ${ex.department}`).join('\n')
 - Orthopedics: Bone fractures, joint injuries, musculoskeletal pain.
 - Dermatology: Skin rashes, infections, burns, lesions.
 - Neurology: Headaches, seizures, paralysis, stroke symptoms.
-- Pulmonology: Lung issues, persistent cough, chronic respiratory problems.
-- General Medicine: Fever, infections, common ailments.
-- Emergency Medicine: Trauma, severe accidents, immediate life-threats.
+- Pediatrics: All symptoms and issues for children and adolescents (age <= 18).
+- General Medicine: Fever, infections, common ailments for adults.
 - ENT: Ear, nose, throat, sinus issues.
 
 ### SAFETY RULES:
@@ -161,9 +160,9 @@ Reply with ONLY a JSON object:
   else if (matches(['brain', 'stroke', 'head', 'seizure', 'paralysis'])) department = 'Neurology';
   else if (matches(['bone', 'fracture', 'leg', 'arm', 'back', 'joint', 'knee', 'shoulder'])) department = 'Orthopedics';
   else if (matches(['skin', 'rash', 'itch', 'burn', 'acne'])) department = 'Dermatology';
-  else if (matches(['breath', 'lung', 'cough', 'shortness', 'respiratory', 'asthma'])) department = 'Pulmonology';
-  else if (matches(['trauma', 'accident', 'bleeding', 'stab', 'unconscious'])) department = 'Emergency Medicine';
   else if (matches(['ear', 'nose', 'throat', 'sinus', 'tonsil'])) department = 'ENT';
+  else if (age <= 18) department = 'Pediatrics';
+  else department = 'General Medicine';
 
   return {
     ...localResult,
