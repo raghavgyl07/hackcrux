@@ -1,5 +1,6 @@
 "use client";
 
+<<<<<<< HEAD
 import { useEffect, useState, use } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, User, Mail, Calendar, Activity, CheckCircle2, FileText, AlertCircle, Stethoscope } from "lucide-react";
@@ -102,8 +103,14 @@ export default function DoctorReportView({ params }: { params: Promise<{ id: str
       default: return "bg-[var(--secondary)] text-white shadow-md";
     }
   };
+=======
+import { Suspense } from "react";
+import PatientReportsContent from "./PatientReportsContent";
+>>>>>>> 40c1ef9d6ba5200e971500088713161ed4ce978b
 
+export default function Page() {
   return (
+<<<<<<< HEAD
     <div className="min-h-screen p-6 md:p-10 relative bg-[var(--background)] font-[family-name:var(--font-inter)] text-[var(--foreground)] overflow-hidden">
       {/* Decorative gradients */}
       <div className="absolute top-10 right-[-10%] w-[400px] h-[400px] bg-[var(--primary-gradient-end)]/5 blur-[120px] rounded-full pointer-events-none" />
@@ -272,5 +279,10 @@ export default function DoctorReportView({ params }: { params: Promise<{ id: str
 
       </div>
     </div>
+=======
+    <Suspense fallback={<div>Loading...</div>}>
+      <PatientReportsContent />
+    </Suspense>
+>>>>>>> 40c1ef9d6ba5200e971500088713161ed4ce978b
   );
 }

@@ -8,6 +8,8 @@ import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { API_BASE_URL } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
+
 interface Report {
   id: string; // from report_id
   priority_level: string;
