@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Activity, FileText, Calendar, ArrowRight, ArrowLeft, Stethoscope, Image as ImageIcon } from "lucide-react";
 import Link from "next/link";
