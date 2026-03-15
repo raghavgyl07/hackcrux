@@ -133,7 +133,7 @@ router.get('/reports', async (req, res) => {
       .eq('patient_email', email)
       .order('report_date', { ascending: false });
     if (error) throw error;
-    const reports = data.map(row => ({ id: row.report_id, ...row }));
+    let reports = data.map(row => ({ id: row.report_id, ...row }));
 
     // Apply dynamic priority escalation (same as doctor routes) for consistency
     const { updatePriorityWithTime } = require('../utils/priorityCalculator');

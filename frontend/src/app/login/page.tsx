@@ -53,7 +53,7 @@ export default function UnifiedLogin() {
     try {
       // 1. Try Doctor specialized login first if it looks like a hospital email
       // or if the user intends to log in as a doctor
-      const doctorRes = await fetch("http://localhost:5000/api/doctor/login", {
+      const doctorRes = await fetch(`${API_BASE_URL}/api/doctor/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
@@ -71,7 +71,7 @@ export default function UnifiedLogin() {
       }
 
       // 2. If not a known doctor, check if it's a known general user (Patient)
-      const res = await fetch("http://localhost:5000/api/auth/login", {
+      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
@@ -117,7 +117,7 @@ export default function UnifiedLogin() {
     try {
       // 1. If Doctor, use the specialized register endpoint
       if (role === "Doctor") {
-        const docRes = await fetch("http://localhost:5000/api/doctor/register", {
+        const docRes = await fetch(`${API_BASE_URL}/api/doctor/register`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, department }),
@@ -127,7 +127,7 @@ export default function UnifiedLogin() {
         if (!docRes.ok) throw new Error(docData.error || "Doctor registration failed");
 
         // Also create a general user record for name/role consistency
-        await fetch("http://localhost:5000/api/auth/signup", {
+        await fetch(`${API_BASE_URL}/api/auth/signup`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name, email, role: "Doctor" }),
@@ -140,7 +140,7 @@ export default function UnifiedLogin() {
       }
 
       // 2. Standard signup for patients
-      const res = await fetch("http://localhost:5000/api/auth/signup", {
+      const res = await fetch(`${API_BASE_URL}/api/auth/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, role }),
