@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Users, AlertTriangle, ArrowRight, Activity, Stethoscope, ArrowLeft, FileText, Zap, Heart } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { API_BASE_URL } from "@/lib/api";
 
 interface Report {
   report_id: string;
@@ -42,7 +43,7 @@ export default function DoctorDashboard() {
 
   const fetchDashboardData = async (dept: string) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/doctor/dashboard?department=${encodeURIComponent(dept || department)}`);
+      const res = await fetch(`${API_BASE_URL}/api/doctor/dashboard?department=${encodeURIComponent(dept || department)}`);
       if (res.ok) {
         const data = await res.json();
         setStats(data.stats);

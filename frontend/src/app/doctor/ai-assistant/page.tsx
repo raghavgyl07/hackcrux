@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { API_BASE_URL } from "@/lib/api";
 import { Mic, Square, Loader2, ArrowLeft, Stethoscope, Activity, MessageCircle, Clock, Globe, AlertCircle } from "lucide-react";
 import Link from "next/link";
 
@@ -160,7 +161,7 @@ export default function DoctorAIAssistant() {
       setLoading(true);
 
       try {
-        const res = await fetch("http://localhost:5000/api/ai/summarize-consultation", {
+        const res = await fetch(`${API_BASE_URL}/api/ai/summarize-consultation`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ transcription: finalTranscript }),

@@ -2,7 +2,8 @@
 
 import { useEffect, useState, use } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, User, Calendar, Activity, CheckCircle2, FileText, AlertCircle, Stethoscope } from "lucide-react";
+import { ArrowLeft, Calendar, User, FileText, AlertTriangle, CheckCircle, Clock, Stethoscope, Activity, Image as ImageIcon, AlertCircle, CheckCircle2 } from "lucide-react";
+import { API_BASE_URL } from "@/lib/api";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -19,7 +20,7 @@ export default function PatientReportView({ params }: { params: Promise<{ id: st
   const fetchReport = async () => {
     try {
       // Re-using doctor's get route here for reading. Or creating a generic one.
-      const res = await fetch(`http://localhost:5000/api/doctor/report/${id}`);
+      const res = await fetch(`${API_BASE_URL}/api/doctor/report/${id}`);
       if (res.ok) {
         setReport(await res.json());
       } else {
@@ -110,7 +111,7 @@ export default function PatientReportView({ params }: { params: Promise<{ id: st
           {report.image_url && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-5 shadow-sm">
               <img 
-                src={`http://localhost:5000${report.image_url}`} 
+                src={`${API_BASE_URL}${report.image_url}`} 
                 alt="Clinical Image" 
                 className="w-full h-48 object-cover rounded-xl border border-[var(--border-color)] shadow-sm"
               />

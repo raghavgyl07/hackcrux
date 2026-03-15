@@ -1,7 +1,8 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { User, Mail, ArrowRight, ShieldCheck, Activity } from "lucide-react";
+import { ArrowRight, Stethoscope, User, Mail, ShieldCheck, Activity, Languages, CheckCircle2, ChevronRight, Sparkles } from "lucide-react";
+import { API_BASE_URL } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import Link from "next/link";

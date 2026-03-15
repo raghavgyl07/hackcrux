@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { API_BASE_URL } from "@/lib/api";
 import { Mic, Square, Loader2, RotateCcw, Globe } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -118,7 +119,7 @@ export default function VoiceRecorder() {
 
     try {
       // POST to backend as required
-      const response = await fetch("http://localhost:5000/api/ai/process-transcript", {
+      const response = await fetch(`${API_BASE_URL}/api/ai/process-transcript`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ transcript: finalTranscript })

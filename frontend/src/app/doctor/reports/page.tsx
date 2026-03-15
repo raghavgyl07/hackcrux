@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { ArrowRight, FileText, ArrowLeft, Calendar, User, Activity } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { API_BASE_URL } from "@/lib/api";
 
 interface Report {
   report_id: string;
@@ -33,7 +34,7 @@ export default function DoctorAllReports() {
 
   const fetchReports = async (dept: string) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/doctor/reports?department=${encodeURIComponent(dept || department)}`);
+      const res = await fetch(`${API_BASE_URL}/api/doctor/reports?department=${encodeURIComponent(dept || department)}`);
       if (res.ok) {
         const data = await res.json();
         setPatients(data.patients);

@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Activity, FileText, Calendar, ArrowRight, ArrowLeft, Stethoscope, Image as ImageIcon } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
+import { API_BASE_URL } from "@/lib/api";
 
 interface Report {
   id: string; // from report_id
@@ -15,11 +17,10 @@ interface Report {
   image_url: string | null;
 }
 
-export default function PatientReports() {
+function PatientReportsContent() {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Note: we are passing email in query params for now as mock auth
   const searchParams = useSearchParams();
   const email = searchParams.get("email") || "patient@example.com";
 
@@ -29,12 +30,12 @@ export default function PatientReports() {
 
   const fetchReports = async () => {
     try {
-      const res = await fetch(`http://localhost:5000/api/patient/reports?email=${encodeURIComponent(email)}`);
+      const res = await fetch(`${API_BASE_URL}/api/patient/reports?email=${encodeURIComponent(email)}`);
       if (res.ok) {
         setReports(await res.json());
       }
-    } catch (error) {
-      console.error(error);
+    } catch (e) {
+      console.error("List fetch error:", e);
     } finally {
       setLoading(false);
     }
@@ -42,11 +43,11 @@ export default function PatientReports() {
 
   const getPriorityColor = (level: string) => {
     switch (level?.toUpperCase()) {
-      case "CRITICAL": return "bg-[var(--emergency-red)] text-white";
-      case "HIGH": return "bg-[#F97316] text-white"; // Orange
-      case "MEDIUM": return "bg-[var(--warning-yellow)] text-white";
-      case "LOW": return "bg-[var(--success-green)] text-white";
-      default: return "bg-[var(--secondary)] text-white";
+      case "CRITICAL": return "bg-red-500 text-white";
+      case "HIGH": return "bg-orange-500 text-white";
+      case "MEDIUM": return "bg-blue-500 text-white";
+      case "LOW": return "bg-green-500 text-white";
+      default: return "bg-gray-500 text-white";
     }
   };
 
@@ -60,7 +61,6 @@ export default function PatientReports() {
 
   return (
     <div className="min-h-screen p-6 md:p-10 relative bg-[var(--background)] font-[family-name:var(--font-inter)] text-[var(--foreground)] overflow-hidden">
-      {/* Decorative gradients */}
       <div className="absolute top-[-5%] right-[-5%] w-[400px] h-[400px] bg-[var(--primary-gradient-end)]/5 blur-[120px] rounded-full pointer-events-none" />
       
       <div className="max-w-5xl mx-auto relative z-10">
@@ -129,7 +129,7 @@ export default function PatientReports() {
                       <td className="py-5 px-6">
                         <div className="flex items-center gap-2">
                            <Activity className="w-4 h-4 text-[var(--primary-gradient-start)]" />
-                           <span className="text-[var(--foreground)] font-mono font-semibold">{r.priority_score.toFixed(1)} / 4</span>
+                           <span className="text-[var(--foreground)] font-mono font-semibold">{r.priority_score?.toFixed(1) || '0.0'} / 4</span>
                         </div>
                       </td>
                       <td className="py-5 px-6 text-right">
@@ -149,5 +149,17 @@ export default function PatientReports() {
         </motion.div>
       </div>
     </div>
+  );
+}
+
+export default function PatientReports() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-[var(--background)]">
+        <div className="w-8 h-8 border-3 border-[var(--primary-gradient-start)]/30 border-t-[var(--primary-gradient-start)] rounded-full animate-spin" />
+      </div>
+    }>
+      <PatientReportsContent />
+    </Suspense>
   );
 }

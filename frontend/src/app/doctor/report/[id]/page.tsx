@@ -3,6 +3,7 @@
 import { useEffect, useState, use } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, User, Mail, Calendar, Activity, CheckCircle2, FileText, AlertCircle, Stethoscope } from "lucide-react";
+import { API_BASE_URL } from "@/lib/api";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import MicInput from "@/components/MicInput";
@@ -22,7 +23,7 @@ export default function DoctorReportView({ params }: { params: Promise<{ id: str
 
   const fetchReport = async () => {
     try {
-      const res = await fetch(`http://localhost:5000/api/doctor/report/${id}`);
+      const res = await fetch(`${API_BASE_URL}/api/doctor/report/${id}`);
       if (res.ok) {
         setReport(await res.json());
       } else {
@@ -45,7 +46,7 @@ export default function DoctorReportView({ params }: { params: Promise<{ id: str
 
     setIsTranslating(true);
     try {
-      const res = await fetch("http://localhost:5000/api/ai/translate-to-english", {
+      const res = await fetch(`${API_BASE_URL}/api/ai/translate-to-english`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: response }),
@@ -67,7 +68,7 @@ export default function DoctorReportView({ params }: { params: Promise<{ id: str
     if (!response.trim()) return alert("Please enter a doctor response");
     setSaving(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/doctor/report/${id}/finalize`, {
+      const res = await fetch(`${API_BASE_URL}/api/doctor/report/${id}/finalize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ doctor_response: response })
@@ -199,7 +200,7 @@ export default function DoctorReportView({ params }: { params: Promise<{ id: str
                         <Activity className="w-3.5 h-3.5 text-[var(--primary-gradient-start)]" /> Visual Findings
                       </p>
                       <img 
-                        src={`http://localhost:5000${report.image_url}`} 
+                        src={`${API_BASE_URL}${report.image_url}`} 
                         alt="Patient Image" 
                         className="w-full h-32 object-cover rounded-xl border border-[var(--border-color)] shadow-sm mb-3"
                       />

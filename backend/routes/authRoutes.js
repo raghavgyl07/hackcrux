@@ -14,24 +14,14 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    let user;
-    if (db.isSupabase) {
-      const { data, error } = await db
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .single();
-      
-      if (error && error.code !== 'PGRST116') throw error; // PGRST116 is code for "no rows found"
-      user = data;
-    } else {
-      user = await new Promise((resolve, reject) => {
-        db.get(`SELECT * FROM Users WHERE email = ?`, [email], (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        });
-      });
-    }
+    const { data, error } = await db
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') throw error; // PGRST116 is code for "no rows found"
+    const user = data;
 
     if (!user) {
       return res.status(404).json({ 
@@ -61,34 +51,17 @@ router.post('/signup', async (req, res) => {
   }
 
   try {
-    let user;
-    if (db.isSupabase) {
-      const { data, error } = await db
-        .from('users')
-        .insert([{ name, email, role }])
-        .select('id, name, email, role')
-        .single();
+    const { data, error } = await db
+      .from('users')
+      .insert([{ name, email, role }])
+      .select('id, name, email, role')
+      .single();
 
-      if (error) {
-        if (error.code === '23505') return res.status(400).json({ error: 'Email already registered' });
-        throw error;
-      }
-      user = data;
-    } else {
-      user = await new Promise((resolve, reject) => {
-        db.run(
-          `INSERT INTO Users (name, email, role) VALUES (?, ?, ?)`,
-          [name, email, role],
-          function(err) {
-            if (err) {
-              if (err.message.includes('UNIQUE')) return reject({ status: 400, message: 'Email already registered' });
-              return reject(err);
-            }
-            resolve({ id: this.lastID, name, email, role });
-          }
-        );
-      });
+    if (error) {
+      if (error.code === '23505') return res.status(400).json({ error: 'Email already registered' });
+      throw error;
     }
+    const user = data;
 
     res.status(201).json({
       message: 'Account created successfully!',

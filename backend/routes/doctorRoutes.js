@@ -9,23 +9,13 @@ router.post('/login', async (req, res) => {
   if (!email) return res.status(400).json({ error: 'Email required' });
 
   try {
-    let doctor;
-    if (db.isSupabase) {
-      const { data, error } = await db
-        .from('doctors')
-        .select('*')
-        .eq('email', email)
-        .single();
-      if (error && error.code !== 'PGRST116') throw error;
-      doctor = data;
-    } else {
-      doctor = await new Promise((resolve, reject) => {
-        db.get(`SELECT * FROM doctors WHERE email = ?`, [email], (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        });
-      });
-    }
+    const { data, error } = await db
+      .from('doctors')
+      .select('*')
+      .eq('email', email)
+      .single();
+    if (error && error.code !== 'PGRST116') throw error;
+    const doctor = data;
 
     if (!doctor) {
       return res.json({ exists: false });
@@ -50,27 +40,13 @@ router.post('/register', async (req, res) => {
   if (!email || !department) return res.status(400).json({ error: 'Email and department required' });
 
   try {
-    let doctor;
-    if (db.isSupabase) {
-      const { data, error } = await db
-        .from('doctors')
-        .insert([{ email, department }])
-        .select('*')
-        .single();
-      if (error) throw error;
-      doctor = data;
-    } else {
-      doctor = await new Promise((resolve, reject) => {
-        db.run(
-          `INSERT INTO doctors (email, department) VALUES (?, ?)`,
-          [email, department],
-          function(err) {
-            if (err) return reject(err);
-            resolve({ doctor_id: this.lastID, email, department });
-          }
-        );
-      });
-    }
+    const { data, error } = await db
+      .from('doctors')
+      .insert([{ email, department }])
+      .select('*')
+      .single();
+    if (error) throw error;
+    const doctor = data;
 
     res.status(201).json({ 
       message: 'Doctor registered successfully', 
@@ -91,27 +67,13 @@ router.get('/dashboard', async (req, res) => {
   if (!department) return res.status(400).json({ error: 'Department required for filtering' });
 
   try {
-    let rows;
-    if (db.isSupabase) {
-      const { data, error } = await db
-        .from('reports')
-        .select('*')
-        .eq('predicted_department', department)
-        .is('doctor_response', null);
-      if (error) throw error;
-      rows = data;
-    } else {
-      rows = await new Promise((resolve, reject) => {
-        db.all(
-          `SELECT * FROM reports WHERE predicted_department = ? AND doctor_response IS NULL`, 
-          [department], 
-          (err, rows) => {
-            if (err) reject(err);
-            else resolve(rows || []);
-          }
-        );
-      });
-    }
+    const { data, error } = await db
+      .from('reports')
+      .select('*')
+      .eq('predicted_department', department)
+      .is('doctor_response', null);
+    if (error) throw error;
+    const rows = data;
 
     // 1. Escalate priorities dynamically
     let patients = rows.map(report => {
@@ -153,27 +115,13 @@ router.get('/reports', async (req, res) => {
   if (!department) return res.status(400).json({ error: 'Department required' });
 
   try {
-    let rows;
-    if (db.isSupabase) {
-      const { data, error } = await db
-        .from('reports')
-        .select('*')
-        .eq('predicted_department', department)
-        .order('report_date', { ascending: false });
-      if (error) throw error;
-      rows = data;
-    } else {
-      rows = await new Promise((resolve, reject) => {
-        db.all(
-          `SELECT * FROM reports WHERE predicted_department = ? ORDER BY report_date DESC`, 
-          [department],
-          (err, rows) => {
-            if (err) reject(err);
-            else resolve(rows || []);
-          }
-        );
-      });
-    }
+    const { data, error } = await db
+      .from('reports')
+      .select('*')
+      .eq('predicted_department', department)
+      .order('report_date', { ascending: false });
+    if (error) throw error;
+    const rows = data;
 
     // Apply dynamic priority escalation and sorting
     let patients = rows.map(report => {
@@ -198,23 +146,13 @@ router.get('/reports', async (req, res) => {
 router.get('/report/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    let row;
-    if (db.isSupabase) {
-      const { data, error } = await db
-        .from('reports')
-        .select('*')
-        .eq('report_id', id)
-        .single();
-      if (error) throw error;
-      row = data;
-    } else {
-      row = await new Promise((resolve, reject) => {
-        db.get(`SELECT * FROM reports WHERE report_id = ?`, [id], (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        });
-      });
-    }
+    const { data, error } = await db
+      .from('reports')
+      .select('*')
+      .eq('report_id', id)
+      .single();
+    if (error) throw error;
+    const row = data;
 
     if (!row) return res.status(404).json({ error: 'Report not found' });
       
@@ -243,21 +181,11 @@ router.post('/report/:id/finalize', async (req, res) => {
   if (!doctor_response) return res.status(400).json({ error: 'Doctor response required' });
 
   try {
-    if (db.isSupabase) {
-      const { error } = await db
-        .from('reports')
-        .update({ doctor_response })
-        .eq('report_id', id);
-      if (error) throw error;
-    } else {
-      await new Promise((resolve, reject) => {
-        db.run(
-          `UPDATE reports SET doctor_response = ? WHERE report_id = ?`,
-          [doctor_response, id],
-          (err) => err ? reject(err) : resolve()
-        );
-      });
-    }
+    const { error } = await db
+      .from('reports')
+      .update({ doctor_response })
+      .eq('report_id', id);
+    if (error) throw error;
     res.json({ message: 'Report finalized successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });

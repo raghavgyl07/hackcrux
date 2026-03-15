@@ -1,4 +1,6 @@
+"use client";
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { API_BASE_URL } from "@/lib/api";
 import { Mic, Square, Globe, Loader2 } from 'lucide-react';
 
 const LANGUAGES = [
@@ -40,7 +42,7 @@ export default function MicInput({ onTranscript, className = "" }: MicInputProps
   // Translate text to English via backend
   const translateToEnglish = async (text: string): Promise<string> => {
     try {
-      const res = await fetch("http://localhost:5000/api/ai/translate-to-english", {
+      const res = await fetch(`${API_BASE_URL}/api/ai/translate-to-english`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),

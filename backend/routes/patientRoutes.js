@@ -25,32 +25,18 @@ const generatePatientId = () => {
 // Helper to get last 5 reports for few-shot learning
 const getHistoricalExamples = async () => {
   try {
-    if (db.isSupabase) {
-      const { data, error } = await db
-        .from('reports')
-        .select('*')
-        .order('report_date', { ascending: false })
-        .limit(5);
-      if (error) return [];
-      return data.map(r => ({
-        symptoms: r.symptoms, // Note: symptoms might be the summary if we only stored summary before, but let's assume we store input
-        // Wait, the reports table has ai_summary, not direct symptoms. Let's check.
-        // Actually, let's use ai_summary as the symptom description for history
-        symptoms: r.ai_summary,
-        visual_findings: r.visual_findings,
-        priority: r.priority_level,
-        department: r.predicted_department
-      }));
-    } else {
-      return await new Promise((resolve) => {
-        db.all(
-          `SELECT ai_summary as symptoms, visual_findings, priority_level as priority, predicted_department as department 
-           FROM reports ORDER BY report_date DESC LIMIT 5`,
-          [],
-          (err, rows) => resolve(err ? [] : rows)
-        );
-      });
-    }
+    const { data, error } = await db
+      .from('reports')
+      .select('*')
+      .order('report_date', { ascending: false })
+      .limit(5);
+    if (error) return [];
+    return data.map(r => ({
+      symptoms: r.ai_summary,
+      visual_findings: r.visual_findings,
+      priority: r.priority_level,
+      department: r.predicted_department
+    }));
   } catch (e) {
     return [];
   }
@@ -102,35 +88,23 @@ router.post('/submit', upload.single('image'), async (req, res) => {
       report_date: registrationTime
     };
 
-    if (db.isSupabase) {
-      // Retry loop: auto-strip columns that don't exist in Supabase table
-      let insertData = { ...reportData };
-      let lastError = null;
-      for (let attempt = 0; attempt < 5; attempt++) {
-        const { error } = await db.from('reports').insert([insertData]);
-        if (!error) { lastError = null; break; }
-        // If error is about a missing column, strip it and retry
-        const colMatch = error.message.match(/Could not find the '(\w+)' column/);
-        if (colMatch) {
-          console.warn(`Supabase: column '${colMatch[1]}' missing, stripping and retrying...`);
-          delete insertData[colMatch[1]];
-          lastError = error;
-        } else {
-          throw new Error(`Supabase error: ${error.message}`);
-        }
+    // Retry loop: auto-strip columns that don't exist in Supabase table
+    let insertData = { ...reportData };
+    let lastError = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const { error } = await db.from('reports').insert([insertData]);
+      if (!error) { lastError = null; break; }
+      // If error is about a missing column, strip it and retry
+      const colMatch = error.message.match(/Could not find the '(\w+)' column/);
+      if (colMatch) {
+        console.warn(`Supabase: column '${colMatch[1]}' missing, stripping and retrying...`);
+        delete insertData[colMatch[1]];
+        lastError = error;
+      } else {
+        throw new Error(`Supabase error: ${error.message}`);
       }
-      if (lastError) throw new Error(`Supabase error: ${lastError.message}`);
-    } else {
-      await new Promise((resolve, reject) => {
-        const cols = Object.keys(reportData).join(', ');
-        const placeholders = Object.keys(reportData).map(() => '?').join(', ');
-        db.run(
-          `INSERT INTO reports (${cols}) VALUES (${placeholders})`,
-          Object.values(reportData),
-          (err) => err ? reject(err) : resolve()
-        );
-      });
     }
+    if (lastError) throw new Error(`Supabase error: ${lastError.message}`);
 
     res.status(201).json({ 
       message: 'Report created successfully', 
@@ -153,24 +127,13 @@ router.get('/reports', async (req, res) => {
   if (!email) return res.status(400).json({ error: 'Email required' });
 
   try {
-    let reports;
-    if (db.isSupabase) {
-      const { data, error } = await db
-        .from('reports')
-        .select('*')
-        .eq('patient_email', email)
-        .order('report_date', { ascending: false });
-      if (error) throw error;
-      reports = data.map(row => ({ id: row.report_id, ...row }));
-    } else {
-      reports = await new Promise((resolve, reject) => {
-        db.all(
-          `SELECT *, report_id as id FROM reports WHERE patient_email = ? ORDER BY report_date DESC`,
-          [email],
-          (err, rows) => err ? reject(err) : resolve(rows)
-        );
-      });
-    }
+    const { data, error } = await db
+      .from('reports')
+      .select('*')
+      .eq('patient_email', email)
+      .order('report_date', { ascending: false });
+    if (error) throw error;
+    const reports = data.map(row => ({ id: row.report_id, ...row }));
 
     // Apply dynamic priority escalation (same as doctor routes) for consistency
     const { updatePriorityWithTime } = require('../utils/priorityCalculator');
