@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useEffect, useState, use } from "react";
 import { motion } from "framer-motion";
 import { Activity, FileText, Calendar, ArrowRight, ArrowLeft, Stethoscope, Image as ImageIcon } from "lucide-react";
@@ -18,7 +20,7 @@ interface Report {
 export default function PatientReports() {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Note: we are passing email in query params for now as mock auth
   const searchParams = useSearchParams();
   const email = searchParams.get("email") || "patient@example.com";
@@ -29,7 +31,7 @@ export default function PatientReports() {
 
   const fetchReports = async () => {
     try {
-      const res = await fetch(`http://localhost:5000/api/patient/reports?email=${encodeURIComponent(email)}`);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/patient/reports?email=${encodeURIComponent(email)}`);
       if (res.ok) {
         setReports(await res.json());
       }
@@ -62,7 +64,7 @@ export default function PatientReports() {
     <div className="min-h-screen p-6 md:p-10 relative bg-[var(--background)] font-[family-name:var(--font-inter)] text-[var(--foreground)] overflow-hidden">
       {/* Decorative gradients */}
       <div className="absolute top-[-5%] right-[-5%] w-[400px] h-[400px] bg-[var(--primary-gradient-end)]/5 blur-[120px] rounded-full pointer-events-none" />
-      
+
       <div className="max-w-5xl mx-auto relative z-10">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10 pt-4">
           <div>
@@ -108,7 +110,7 @@ export default function PatientReports() {
                     <tr key={r.id} className="hover:bg-[var(--background)]/50 transition-colors">
                       <td className="py-5 px-6 text-[var(--secondary)]">
                         <div className="flex items-center gap-2">
-                           <Calendar className="w-4 h-4 text-[var(--secondary)]/70" /> {new Date(r.report_date).toLocaleDateString()}
+                          <Calendar className="w-4 h-4 text-[var(--secondary)]/70" /> {new Date(r.report_date).toLocaleDateString()}
                         </div>
                       </td>
                       <td className="py-5 px-6 text-[var(--foreground)] font-mono text-xs flex items-center gap-2 mt-0.5">
@@ -128,12 +130,12 @@ export default function PatientReports() {
                       </td>
                       <td className="py-5 px-6">
                         <div className="flex items-center gap-2">
-                           <Activity className="w-4 h-4 text-[var(--primary-gradient-start)]" />
-                           <span className="text-[var(--foreground)] font-mono font-semibold">{r.priority_score.toFixed(1)} / 4</span>
+                          <Activity className="w-4 h-4 text-[var(--primary-gradient-start)]" />
+                          <span className="text-[var(--foreground)] font-mono font-semibold">{r.priority_score.toFixed(1)} / 4</span>
                         </div>
                       </td>
                       <td className="py-5 px-6 text-right">
-                        <Link 
+                        <Link
                           href={`/patient/report/${r.id}`}
                           className="inline-flex items-center justify-center text-[var(--primary-gradient-start)] hover:text-[var(--primary-gradient-end)] hover:bg-[var(--primary-gradient-start)]/5 py-2 px-3 rounded-xl transition-all font-medium text-xs group"
                         >
