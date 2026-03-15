@@ -1,6 +1,5 @@
 "use client";
 
-<<<<<<< HEAD
 import { useEffect, useState, use } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, User, Mail, Calendar, Activity, CheckCircle2, FileText, AlertCircle, Stethoscope } from "lucide-react";
@@ -103,14 +102,8 @@ export default function DoctorReportView({ params }: { params: Promise<{ id: str
       default: return "bg-[var(--secondary)] text-white shadow-md";
     }
   };
-=======
-import { Suspense } from "react";
-import PatientReportsContent from "./PatientReportsContent";
->>>>>>> 40c1ef9d6ba5200e971500088713161ed4ce978b
 
-export default function Page() {
   return (
-<<<<<<< HEAD
     <div className="min-h-screen p-6 md:p-10 relative bg-[var(--background)] font-[family-name:var(--font-inter)] text-[var(--foreground)] overflow-hidden">
       {/* Decorative gradients */}
       <div className="absolute top-10 right-[-10%] w-[400px] h-[400px] bg-[var(--primary-gradient-end)]/5 blur-[120px] rounded-full pointer-events-none" />
@@ -134,7 +127,7 @@ export default function Page() {
           
           <div className={`px-5 py-2.5 rounded-xl flex items-center gap-2 shadow-sm ${getPriorityStyle(report.priority_level)}`}>
             <AlertCircle className="w-4 h-4" />
-            <span className="font-semibold tracking-wide text-sm uppercase">{report.priority_level} Priority ({report.priority_score.toFixed(1)}/4)</span>
+            <span className="font-semibold tracking-wide text-sm uppercase">{report.priority_level} Priority ({report.priority_score?.toFixed(1) || '0.0'}/4)</span>
           </div>
         </div>
 
@@ -166,7 +159,7 @@ export default function Page() {
             </div>
           </motion.div>
 
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className={`bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-7 shadow-sm ${report.image_url ? 'md:col-span-2' : 'md:col-span-2'}`}>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className={`bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-7 shadow-sm md:col-span-2`}>
             <h3 className="text-xl font-[family-name:var(--font-dm-serif)] text-[var(--foreground)] mb-5 border-b border-[var(--border-color)] pb-3 flex items-center">
                <Activity className="w-5 h-5 text-[var(--primary-gradient-start)] mr-2" /> AI Clinical Assessment
             </h3>
@@ -232,7 +225,7 @@ export default function Page() {
              <h3 className="text-xl font-[family-name:var(--font-dm-serif)] text-[var(--foreground)] flex items-center">
               <Stethoscope className="w-5 h-5 text-[var(--primary-gradient-start)] mr-2" /> Doctor's Response & Finalization
               {isTranslating && <span className="ml-4 text-xs bg-[var(--primary-gradient-start)]/10 text-[var(--primary-gradient-start)] px-3 py-1 rounded-full font-bold uppercase tracking-wider animate-pulse flex items-center gap-1.5"><Activity className="w-3 h-3" /> Translating...</span>}
-            </h3>
+             </h3>
             {!report.doctor_response && (
                <MicInput onTranscript={(text) => setResponse(prev => prev ? prev + " " + text : text)} />
             )}
@@ -279,10 +272,5 @@ export default function Page() {
 
       </div>
     </div>
-=======
-    <Suspense fallback={<div>Loading...</div>}>
-      <PatientReportsContent />
-    </Suspense>
->>>>>>> 40c1ef9d6ba5200e971500088713161ed4ce978b
   );
 }
