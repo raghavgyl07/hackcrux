@@ -2,7 +2,7 @@
 
 import { useEffect, useState, use } from "react";
 import { motion } from "framer-motion";
-import { Activity, FileText, Calendar, ArrowRight, ArrowLeft } from "lucide-react";
+import { Activity, FileText, Calendar, ArrowRight, ArrowLeft, Stethoscope, Image as ImageIcon } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -11,6 +11,8 @@ interface Report {
   priority_level: string;
   priority_score: number;
   report_date: string;
+  predicted_department: string;
+  image_url: string | null;
 }
 
 export default function PatientReports() {
@@ -40,87 +42,102 @@ export default function PatientReports() {
 
   const getPriorityColor = (level: string) => {
     switch (level?.toUpperCase()) {
-      case "CRITICAL": return "bg-red-500/20 text-red-400 border-red-500/30 animate-pulse";
-      case "HIGH": return "bg-orange-500/10 text-orange-500 border-orange-500/20";
-      case "MEDIUM": return "bg-yellow-500/10 text-yellow-400 border-yellow-500/20";
-      case "LOW": return "bg-green-500/10 text-green-500 border-green-500/20";
-      default: return "bg-neutral-500/10 text-neutral-400 border-neutral-500/20";
+      case "CRITICAL": return "bg-[var(--emergency-red)] text-white";
+      case "HIGH": return "bg-[#F97316] text-white"; // Orange
+      case "MEDIUM": return "bg-[var(--warning-yellow)] text-white";
+      case "LOW": return "bg-[var(--success-green)] text-white";
+      default: return "bg-[var(--secondary)] text-white";
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-[var(--background)]">
+        <div className="w-8 h-8 border-3 border-[var(--primary-gradient-start)]/30 border-t-[var(--primary-gradient-start)] rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-200 p-6 md:p-10 relative">
-      <div className="absolute top-0 left-0 w-[40%] h-[40%] bg-cyan-600/5 blur-[150px] rounded-full pointer-events-none" />
+    <div className="min-h-screen p-6 md:p-10 relative bg-[var(--background)] font-[family-name:var(--font-inter)] text-[var(--foreground)] overflow-hidden">
+      {/* Decorative gradients */}
+      <div className="absolute top-[-5%] right-[-5%] w-[400px] h-[400px] bg-[var(--primary-gradient-end)]/5 blur-[120px] rounded-full pointer-events-none" />
       
       <div className="max-w-5xl mx-auto relative z-10">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10 pt-4">
           <div>
-            <Link href={`/patient/submit?email=${encodeURIComponent(email)}`} className="inline-flex items-center text-cyan-500 hover:text-cyan-400 mb-6 transition-colors text-sm font-medium">
+            <Link href={`/patient/submit?email=${encodeURIComponent(email)}`} className="inline-flex items-center text-[var(--secondary)] hover:text-[var(--primary-gradient-start)] mb-6 transition-colors text-sm font-medium border hover:border-[var(--primary-gradient-start)]/30 px-3 py-1.5 rounded-full">
               <ArrowLeft className="w-4 h-4 mr-2" /> Back to Symptom Assessment
             </Link>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-xl bg-cyan-500/20 flex items-center justify-center">
-                <FileText className="w-5 h-5 text-cyan-400" />
+            <div className="flex items-center gap-4 mb-3">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[var(--primary-gradient-start)]/10 to-[var(--primary-gradient-end)]/10 border border-[var(--primary-gradient-start)]/20 flex items-center justify-center shadow-sm">
+                <FileText className="w-6 h-6 text-[var(--primary-gradient-start)]" />
               </div>
-              <h1 className="text-3xl font-bold text-white">My Medical Reports</h1>
+              <h1 className="text-4xl font-[family-name:var(--font-dm-serif)] text-[var(--foreground)] tracking-tight">My Medical Reports</h1>
             </div>
-            <p className="text-neutral-400">View your history, priority status, and doctor comments.</p>
+            <p className="text-[var(--secondary)]">View your history, priority status, and doctor comments.</p>
           </div>
         </div>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-neutral-900 border border-neutral-800 rounded-3xl overflow-hidden">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-neutral-950 border-b border-neutral-800 text-neutral-400 text-sm">
-                  <th className="py-4 px-6 font-medium">Date</th>
-                  <th className="py-4 px-6 font-medium">Report ID</th>
-                  <th className="py-4 px-6 font-medium">Priority Level</th>
-                  <th className="py-4 px-6 font-medium">Triage Score</th>
-                  <th className="py-4 px-6 font-medium text-right">Action</th>
+                <tr className="bg-[var(--background)]/50 border-b border-[var(--border-color)] text-[var(--secondary)] text-sm">
+                  <th className="py-5 px-6 font-semibold">Date</th>
+                  <th className="py-5 px-6 font-semibold">Report ID</th>
+                  <th className="py-5 px-6 font-semibold">Department</th>
+                  <th className="py-5 px-6 font-semibold">Priority Level</th>
+                  <th className="py-5 px-6 font-semibold">Triage Level</th>
+                  <th className="py-5 px-6 font-semibold text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-800 text-sm">
+              <tbody className="divide-y divide-[var(--border-color)] text-sm">
                 {reports.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-12 text-center text-neutral-500">
-                      No reports found for {email}
+                    <td colSpan={6} className="py-16 text-center text-[var(--secondary)]">
+                      <div className="flex flex-col items-center justify-center">
+                        <FileText className="w-12 h-12 text-[var(--secondary)]/30 mb-4" />
+                        <p className="text-lg font-[family-name:var(--font-dm-serif)] text-[var(--foreground)]">No reports found</p>
+                        <p className="text-sm mt-1">Submit your symptoms to receive an AI triage report.</p>
+                      </div>
                     </td>
                   </tr>
                 ) : (
                   reports.map((r) => (
-                    <tr key={r.id} className="hover:bg-neutral-800/30 transition-colors">
-                      <td className="py-4 px-6 text-neutral-300">
+                    <tr key={r.id} className="hover:bg-[var(--background)]/50 transition-colors">
+                      <td className="py-5 px-6 text-[var(--secondary)]">
                         <div className="flex items-center gap-2">
-                           <Calendar className="w-4 h-4 text-neutral-500" /> {new Date(r.report_date).toLocaleDateString()}
+                           <Calendar className="w-4 h-4 text-[var(--secondary)]/70" /> {new Date(r.report_date).toLocaleDateString()}
                         </div>
                       </td>
-                      <td className="py-4 px-6 text-white font-mono">{r.id}</td>
-                      <td className="py-4 px-6">
-                        <span className={`px-3 py-1 bg-opacity-10 border rounded-full text-xs font-semibold ${getPriorityColor(r.priority_level)}`}>
+                      <td className="py-5 px-6 text-[var(--foreground)] font-mono text-xs flex items-center gap-2 mt-0.5">
+                        {r.id.substring(0, 8)}...
+                        {r.image_url && <span title="Contains image"><ImageIcon className="w-3.5 h-3.5 text-[var(--primary-gradient-start)]" /></span>}
+                      </td>
+                      <td className="py-5 px-6">
+                        <div className="flex items-center gap-2">
+                          <Stethoscope className="w-4 h-4 text-[var(--primary-gradient-end)]" />
+                          <span className="text-[var(--foreground)] font-medium">{r.predicted_department || 'General Medicine'}</span>
+                        </div>
+                      </td>
+                      <td className="py-5 px-6">
+                        <span className={`px-3 py-1 rounded-full text-[10px] uppercase tracking-wider font-bold ${getPriorityColor(r.priority_level)} shadow-sm`}>
                           {r.priority_level}
                         </span>
                       </td>
-                      <td className="py-4 px-6">
+                      <td className="py-5 px-6">
                         <div className="flex items-center gap-2">
-                           <Activity className="w-4 h-4 text-cyan-500/50" />
-                           <span className="text-white font-mono">{r.priority_score}</span>
+                           <Activity className="w-4 h-4 text-[var(--primary-gradient-start)]" />
+                           <span className="text-[var(--foreground)] font-mono font-semibold">{r.priority_score.toFixed(1)} / 4</span>
                         </div>
                       </td>
-                      <td className="py-4 px-6 text-right">
+                      <td className="py-5 px-6 text-right">
                         <Link 
                           href={`/patient/report/${r.id}`}
-                          className="inline-flex items-center justify-center text-cyan-500 hover:text-cyan-400 hover:bg-cyan-500/10 p-2 rounded-lg transition-colors"
+                          className="inline-flex items-center justify-center text-[var(--primary-gradient-start)] hover:text-[var(--primary-gradient-end)] hover:bg-[var(--primary-gradient-start)]/5 py-2 px-3 rounded-xl transition-all font-medium text-xs group"
                         >
-                          View Report <ArrowRight className="w-4 h-4 ml-1" />
+                          View Report <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
                         </Link>
                       </td>
                     </tr>
@@ -133,5 +150,4 @@ export default function PatientReports() {
       </div>
     </div>
   );
-
 }

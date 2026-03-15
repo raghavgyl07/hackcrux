@@ -2,38 +2,71 @@
 
 import { useState, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Mic, Square, Loader2, ArrowLeft, Stethoscope, Table2 } from "lucide-react";
+import { Mic, Square, Loader2, ArrowLeft, Stethoscope, Activity, MessageCircle, Clock, Globe, AlertCircle } from "lucide-react";
 import Link from "next/link";
+
+interface ClinicalSummary {
+  symptoms: string[];
+  duration_mentions: string[];
+  summary: string;
+  source?: string;
+}
+
+const LANGUAGES = [
+  { code: "", label: "Auto-Detect" },
+  { code: "en-US", label: "English" },
+  { code: "hi-IN", label: "Hindi" },
+  { code: "es-ES", label: "Spanish" },
+  { code: "fr-FR", label: "French" },
+  { code: "ar-SA", label: "Arabic" },
+  { code: "zh-CN", label: "Mandarin" },
+  { code: "de-DE", label: "German" },
+  { code: "pt-BR", label: "Portuguese" },
+  { code: "ja-JP", label: "Japanese" },
+  { code: "ko-KR", label: "Korean" },
+  { code: "ta-IN", label: "Tamil" },
+  { code: "te-IN", label: "Telugu" },
+  { code: "bn-IN", label: "Bengali" },
+  { code: "mr-IN", label: "Marathi" },
+];
+
+const PRIORITY_COLORS: Record<string, { badge: string }> = {
+  CRITICAL: { badge: "bg-[var(--emergency-red)] shadow-[var(--emergency-red)]/20" },
+  HIGH:     { badge: "bg-[#F97316] shadow-[#F97316]/20" },
+  MEDIUM:   { badge: "bg-[var(--warning-yellow)] shadow-[var(--warning-yellow)]/20" },
+  LOW:      { badge: "bg-[var(--success-green)] shadow-[var(--success-green)]/20" },
+};
 
 export default function DoctorAIAssistant() {
   const [isRecording, setIsRecording] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [summaryData, setSummaryData] = useState<any>(null);
+  const [clinicalData, setClinicalData] = useState<ClinicalSummary | null>(null);
   const [liveTranscript, setLiveTranscript] = useState("");
+  const [finalTranscriptText, setFinalTranscriptText] = useState("");
+  const [selectedLang, setSelectedLang] = useState("");
 
-  // Refs to survive across re-renders
   const recognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  const fullTranscriptRef = useRef("");       // accumulates ALL final results
-  const isRecordingRef = useRef(false);        // mirrors state for use in callbacks
+  const isRecordingRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
 
+  // Accumulates the full transcript across recognition restarts
+  const fullTranscriptRef = useRef("");
+
   // ──────────────────────────────────────────────────────
-  // START recording + speech recognition
+  // START recording
   // ──────────────────────────────────────────────────────
   const startRecording = useCallback(async () => {
-    // Reset everything
     fullTranscriptRef.current = "";
     setLiveTranscript("");
-    setSummaryData(null);
+    setClinicalData(null);
+    setFinalTranscriptText("");
 
     try {
-      // 1. Get microphone stream
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      // 2. Setup MediaRecorder (for the audio blob sent to backend)
       const recorder = new MediaRecorder(stream);
       audioChunksRef.current = [];
       recorder.ondataavailable = (e) => {
@@ -42,7 +75,6 @@ export default function DoctorAIAssistant() {
       recorder.start();
       mediaRecorderRef.current = recorder;
 
-      // 3. Setup Web Speech API for live transcription
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (!SpeechRecognition) {
         alert("Your browser does not support speech recognition. Please use Google Chrome or Microsoft Edge.");
@@ -53,10 +85,13 @@ export default function DoctorAIAssistant() {
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
-      recognition.lang = "en-US";
+
+      // Multilingual support — empty string lets the browser auto-detect
+      if (selectedLang) {
+        recognition.lang = selectedLang;
+      }
 
       recognition.onresult = (event: any) => {
-        // Build the full transcript from ALL results (final + interim)
         let accumulated = "";
         for (let i = 0; i < event.results.length; i++) {
           accumulated += event.results[i][0].transcript;
@@ -71,25 +106,17 @@ export default function DoctorAIAssistant() {
 
       recognition.onerror = (event: any) => {
         console.warn("Speech recognition error:", event.error);
-        // "no-speech" and "aborted" are recoverable — just let onend restart
       };
 
       recognition.onend = () => {
-        // Chrome stops recognition after ~60s of silence or on network hiccup.
-        // Auto-restart if we're still supposed to be recording.
+        // Auto-restart for long conversations (Chrome stops after ~60s)
         if (isRecordingRef.current) {
-          try {
-            recognition.start();
-          } catch {
-            // already started or disposed — ignore
-          }
+          try { recognition.start(); } catch {}
         }
       };
 
       recognition.start();
       recognitionRef.current = recognition;
-
-      // 4. Set state
       isRecordingRef.current = true;
       setIsRecording(true);
 
@@ -97,39 +124,31 @@ export default function DoctorAIAssistant() {
       console.error("Error accessing microphone:", err);
       alert("Could not access microphone. Please check permissions.");
     }
-  }, []);
+  }, [selectedLang]);
 
   // ──────────────────────────────────────────────────────
   // STOP recording + send to backend
   // ──────────────────────────────────────────────────────
   const stopRecording = useCallback(async () => {
-    // 1. Flag that we're done (prevents auto-restart of recognition)
     isRecordingRef.current = false;
     setIsRecording(false);
 
-    // 2. Stop speech recognition
     if (recognitionRef.current) {
       try { recognitionRef.current.stop(); } catch {}
       recognitionRef.current = null;
     }
 
-    // 3. Stop MediaRecorder and wait for data
     const recorder = mediaRecorderRef.current;
     if (recorder && recorder.state === "recording") {
-      // Wrap onstop in a promise so we can await it
-      const audioBlob: Blob = await new Promise((resolve) => {
-        recorder.onstop = () => {
-          resolve(new Blob(audioChunksRef.current, { type: "audio/webm" }));
-        };
+      await new Promise<void>((resolve) => {
+        recorder.onstop = () => resolve();
         recorder.stop();
       });
 
-      // 4. Stop mic stream
       streamRef.current?.getTracks().forEach(t => t.stop());
-
-      // 5. Give speech recognition one last moment to finalize
       await new Promise(r => setTimeout(r, 400));
 
+      // Use the accumulated transcript
       const finalTranscript = fullTranscriptRef.current.trim();
 
       if (!finalTranscript) {
@@ -137,27 +156,25 @@ export default function DoctorAIAssistant() {
         return;
       }
 
-      // 6. Send to backend
+      setFinalTranscriptText(finalTranscript);
       setLoading(true);
-      try {
-        const formData = new FormData();
-        formData.append("audio", audioBlob, "recording.webm");
-        formData.append("transcript", finalTranscript);
 
-        const res = await fetch("http://localhost:5000/api/ai/whisper", {
+      try {
+        const res = await fetch("http://localhost:5000/api/ai/summarize-consultation", {
           method: "POST",
-          body: formData,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transcription: finalTranscript }),
         });
 
         if (!res.ok) throw new Error("Server error");
-        const data = await res.json();
-        setSummaryData(data);
+        const data: ClinicalSummary = await res.json();
+        setClinicalData(data);
       } catch (error) {
         console.error("AI summarization failed:", error);
-        // Fallback: show the raw transcript
-        setSummaryData({
-          summary: finalTranscript,
-          points: [{ topic: "Transcribed Speech", details: finalTranscript }]
+        setClinicalData({
+          symptoms: ["Could not reach server"],
+          duration_mentions: [],
+          summary: finalTranscript.substring(0, 200),
         });
       } finally {
         setLoading(false);
@@ -165,37 +182,72 @@ export default function DoctorAIAssistant() {
     }
   }, []);
 
+  // Priority heuristic from symptom count
+  const getPriority = (data: ClinicalSummary) => {
+    const hasSevere = data.symptoms.some(s =>
+      ['severe','intense','chronic','worsening','unbearable','extreme','terrible','acute'].some(word => s.toLowerCase().includes(word))
+    );
+    if (hasSevere && data.symptoms.length >= 2) return "CRITICAL";
+    if (hasSevere || data.symptoms.length >= 4) return "HIGH";
+    if (data.symptoms.length >= 2) return "MEDIUM";
+    return "LOW";
+  };
+
+  const priority = clinicalData ? getPriority(clinicalData) : "MEDIUM";
+  const priorityStyle = PRIORITY_COLORS[priority] || PRIORITY_COLORS.MEDIUM;
+
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-200 p-6 md:p-10 relative">
-      <div className="absolute top-0 right-0 w-[50%] h-[50%] bg-indigo-600/10 blur-[150px] rounded-full pointer-events-none" />
-      
-      <div className="max-w-4xl mx-auto relative z-10">
-        <Link href="/doctor/dashboard" className="inline-flex items-center text-indigo-400 hover:text-indigo-300 mb-8 transition-colors text-sm font-medium">
+    <div className="min-h-screen p-6 md:p-10 relative bg-[var(--background)] font-[family-name:var(--font-inter)] text-[var(--foreground)] overflow-hidden">
+      {/* Decorative gradients */}
+      <div className="absolute top-10 right-[-10%] w-[500px] h-[500px] bg-[var(--primary-gradient-end)]/5 blur-[120px] rounded-full pointer-events-none" />
+      <div className="absolute top-[40%] left-[-10%] w-[300px] h-[300px] bg-[var(--primary-gradient-start)]/5 blur-[100px] rounded-full pointer-events-none" />
+
+      <div className="max-w-4xl mx-auto relative z-10 pt-4">
+         <Link href="/doctor/dashboard" className="inline-flex items-center text-[var(--secondary)] hover:text-[var(--primary-gradient-start)] mb-8 transition-colors text-sm font-medium border hover:border-[var(--primary-gradient-start)]/30 px-3 py-1.5 rounded-full bg-[var(--card-bg)] shadow-sm">
           <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
         </Link>
         
-        <div className="flex items-center gap-3 mb-10">
-          <div className="w-12 h-12 rounded-xl bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
-            <Mic className="w-6 h-6 text-indigo-400" />
+        <div className="flex items-center gap-4 mb-10">
+           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[var(--primary-gradient-start)]/10 to-[var(--primary-gradient-end)]/10 border border-[var(--primary-gradient-start)]/20 flex items-center justify-center shadow-sm">
+            <Mic className="w-7 h-7 text-[var(--primary-gradient-start)]" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-white">AI Voice Assistant</h1>
-            <p className="text-neutral-400">Record patient consultations to automatically extract key clinical points.</p>
+            <h1 className="text-4xl font-[family-name:var(--font-dm-serif)] text-[var(--foreground)] tracking-tight mb-1">AI Voice Assistant</h1>
+            <p className="text-[var(--secondary)]">Record patient consultations to automatically extract key clinical points.</p>
           </div>
         </div>
 
+        {/* Language Selector */}
+        <div className="flex items-center justify-center gap-3 mb-8">
+           <Globe className="w-4 h-4 text-[var(--secondary)]" />
+          <select
+            value={selectedLang}
+            onChange={(e) => setSelectedLang(e.target.value)}
+            disabled={isRecording}
+             className="bg-[var(--card-bg)] border border-[var(--border-color)] text-[var(--foreground)] text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[var(--primary-gradient-start)]/30 focus:border-[var(--primary-gradient-start)]/50 disabled:opacity-50 cursor-pointer shadow-sm transition-all"
+          >
+            {LANGUAGES.map((lang) => (
+              <option key={lang.code} value={lang.code}>{lang.label}</option>
+            ))}
+          </select>
+           <span className="text-xs text-[var(--secondary)] font-medium">Input Language</span>
+        </div>
+
         {/* Record / Stop Button */}
-        <div className="flex justify-center mb-8">
+        <div className="flex justify-center mb-10 relative">
+          {/* Subtle pulse ring behind the button when idle (optional flair) */}
+          {!isRecording && !loading && <div className="absolute inset-0 m-auto w-32 h-32 rounded-full border border-[var(--primary-gradient-start)]/20 animate-ping opacity-30 pointer-events-none" style={{ animationDuration: '3s' }} />}
+          
           {!isRecording ? (
             <motion.button 
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={startRecording}
               disabled={loading}
-              className="w-32 h-32 bg-neutral-900 border-2 border-indigo-500/50 rounded-full flex flex-col items-center justify-center text-indigo-400 hover:bg-indigo-500/10 transition-all group disabled:opacity-50"
+               className="w-36 h-36 bg-[var(--card-bg)] border-2 border-[var(--primary-gradient-start)]/30 rounded-full flex flex-col items-center justify-center text-[var(--primary-gradient-start)] hover:bg-[var(--primary-gradient-start)]/5 transition-all group disabled:opacity-50 shadow-md relative z-10"
             >
-              {loading ? <Loader2 className="w-10 h-10 animate-spin" /> : <Mic className="w-10 h-10 mb-2 group-hover:scale-110 transition-transform" />}
-              <span className="font-medium text-sm">{loading ? "Processing..." : "Tap to Record"}</span>
+              {loading ? <Loader2 className="w-10 h-10 animate-spin" /> : <Mic className="w-12 h-12 mb-2 group-hover:scale-110 transition-transform" />}
+              <span className="font-semibold text-sm">{loading ? "Processing..." : "Tap to Record"}</span>
             </motion.button>
           ) : (
              <motion.button 
@@ -204,62 +256,124 @@ export default function DoctorAIAssistant() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={stopRecording}
-              className="w-32 h-32 bg-red-500/10 border-2 border-red-500 rounded-full flex flex-col items-center justify-center text-red-500 transition-all group relative"
+               className="w-36 h-36 bg-[var(--emergency-red)]/10 border-2 border-[var(--emergency-red)] rounded-full flex flex-col items-center justify-center text-[var(--emergency-red)] transition-all group relative shadow-md z-10"
             >
-              <div className="absolute inset-0 rounded-full bg-red-500/20 animate-ping" />
-              <Square className="w-8 h-8 mb-2 fill-current relative z-10" />
-              <span className="font-medium text-sm relative z-10">Stop Recording</span>
+               <div className="absolute inset-0 rounded-full bg-[var(--emergency-red)]/20 animate-ping" style={{ animationDuration: '2s' }} />
+               <Square className="w-10 h-10 mb-2 fill-current relative z-10" />
+              <span className="font-bold text-sm relative z-10">Stop Recording</span>
             </motion.button>
           )}
         </div>
 
-        {/* Live Transcript Area — visible while recording OR after recording with text */}
-        {(isRecording || liveTranscript) && !summaryData && (
+        {/* Live Transcript Area */}
+        {(isRecording || liveTranscript) && !clinicalData && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-12 max-w-2xl mx-auto">
-            <div className="bg-neutral-900 border border-indigo-500/20 p-6 rounded-2xl">
-              <div className="flex items-center gap-2 mb-3">
-                {isRecording && <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />}
-                <span className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">
+             <div className="bg-[var(--card-bg)] border border-[var(--primary-gradient-start)]/20 p-8 rounded-2xl shadow-sm relative overflow-hidden">
+               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[var(--primary-gradient-start)] to-[var(--primary-gradient-end)] opacity-50" />
+              <div className="flex items-center gap-2 mb-4">
+                 {isRecording && <div className="w-2.5 h-2.5 rounded-full bg-[var(--emergency-red)] animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]" />}
+                 <span className="text-[11px] font-bold text-[var(--secondary)] uppercase tracking-widest">
                   {isRecording ? "Live Transcription" : "Transcription Complete"}
                 </span>
               </div>
-              <p className="text-white text-lg leading-relaxed">
-                {liveTranscript || <span className="text-neutral-600 italic">Listening... start speaking</span>}
+               <p className="text-[var(--foreground)] text-lg leading-relaxed font-medium">
+                 {liveTranscript || <span className="text-[var(--secondary)]/50 italic font-normal">Listening... start speaking naturally.</span>}
               </p>
             </div>
           </motion.div>
         )}
 
-        {/* Summary Results */}
-        {summaryData && (
-          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="bg-neutral-900 border border-neutral-800 rounded-3xl p-8 shadow-xl">
-             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-neutral-800">
-               <Stethoscope className="w-5 h-5 text-indigo-400" />
-               <h3 className="text-xl font-bold text-white">Structured Consultation Summary</h3>
-             </div>
-             
-             <p className="text-neutral-300 text-sm mb-6 bg-neutral-950 p-4 rounded-xl border border-neutral-800/50">
-               {summaryData.summary}
-             </p>
-             
-             <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-neutral-950 border-y border-neutral-800 text-indigo-300 text-sm font-semibold">
-                      <th className="py-3 px-5 flex items-center gap-2"><Table2 className="w-4 h-4" /> Discussion Topic</th>
-                      <th className="py-3 px-5">Extracted Details</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-800/50 text-sm">
-                    {summaryData.points?.map((pt: any, idx: number) => (
-                      <tr key={idx} className="hover:bg-neutral-800/20 transition-colors">
-                        <td className="py-4 px-5 text-neutral-300 font-medium w-1/3">{pt.topic}</td>
-                        <td className="py-4 px-5 text-white">{pt.details}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-             </div>
+        {/* ═══════════ RESULTS ═══════════ */}
+        {clinicalData && (
+          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+            
+            {/* Transcribed Speech Card */}
+            {finalTranscriptText && (
+               <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-7 shadow-sm">
+                <div className="flex items-center gap-2 mb-4">
+                   <MessageCircle className="w-4 h-4 text-[var(--secondary)]/70" />
+                   <h4 className="text-[11px] font-bold text-[var(--secondary)] uppercase tracking-widest">Transcribed Speech</h4>
+                </div>
+                 <p className="text-[var(--foreground)]/90 text-sm leading-relaxed">{finalTranscriptText}</p>
+              </div>
+            )}
+
+            {/* Clinical Key Points Card */}
+             <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl shadow-sm overflow-hidden">
+               <div className="p-7 border-b border-[var(--border-color)] bg-[var(--background)]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                   <div className="p-2 bg-[var(--primary-gradient-start)]/10 rounded-lg text-[var(--primary-gradient-start)]">
+                     <Stethoscope className="w-5 h-5" />
+                   </div>
+                   <h3 className="text-2xl font-[family-name:var(--font-dm-serif)] text-[var(--foreground)] text-shadow-sm">Clinical Consultation</h3>
+                </div>
+                {/* Triage Priority Badge */}
+                 <div className="flex items-center gap-3">
+                   <span className="text-xs text-[var(--secondary)] font-bold uppercase tracking-widest">Triage Priority</span>
+                   <div className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider text-white shadow-sm ${priorityStyle.badge}`}>
+                    {priority}
+                  </div>
+                 </div>
+              </div>
+
+               <div className="p-7 space-y-6 bg-white">
+                {/* Symptoms Mentioned */}
+                {clinicalData.symptoms.length > 0 && (
+                   <div className="bg-[var(--background)]/80 p-5 rounded-xl border border-[var(--border-color)]">
+                     <div className="flex items-center gap-2 mb-3 text-[var(--primary-gradient-start)]">
+                      <Activity className="w-4 h-4" />
+                       <h4 className="text-sm font-bold uppercase tracking-wider">Symptoms Mentioned</h4>
+                    </div>
+                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {clinicalData.symptoms.map((symptom, i) => (
+                         <div key={i} className="flex items-start gap-2">
+                           <div className="w-1.5 h-1.5 rounded-full bg-[var(--primary-gradient-start)]/60 mt-2 flex-shrink-0" />
+                           <p className="text-[var(--foreground)] font-medium text-sm leading-relaxed">{symptom}</p>
+                         </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Duration */}
+                {clinicalData.duration_mentions.length > 0 && (
+                  <div>
+                     <div className="bg-[var(--success-green)]/5 p-5 rounded-xl border border-[var(--success-green)]/15">
+                       <div className="flex items-center gap-2 mb-3 text-[var(--success-green)]">
+                        <Clock className="w-4 h-4" />
+                         <h4 className="text-sm font-bold uppercase tracking-wider">Duration</h4>
+                      </div>
+                      <div className="space-y-2">
+                        {clinicalData.duration_mentions.map((d, i) => (
+                           <div key={i} className="flex items-start gap-2">
+                             <div className="w-1.5 h-1.5 rounded-full bg-[var(--success-green)]/60 mt-1.5 flex-shrink-0" />
+                             <p className="text-[var(--foreground)] font-medium text-sm">{d}</p>
+                           </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Summary */}
+                {clinicalData.summary && (
+                   <div className="bg-gradient-to-r from-[var(--primary-gradient-start)]/5 to-[var(--primary-gradient-end)]/5 p-5 rounded-xl border border-[var(--primary-gradient-start)]/10 mt-2 relative">
+                     <div className="absolute top-2 left-2 text-4xl text-[var(--primary-gradient-start)]/20 font-serif leading-none">"</div>
+                     <p className="text-[var(--foreground)]/90 text-[15px] leading-relaxed italic relative z-10 px-2 font-medium">{clinicalData.summary}</p>
+                  </div>
+                )}
+
+                {/* Source indicator */}
+                {clinicalData.source && (
+                   <div className="flex justify-end items-center gap-1 mt-4 pt-4 border-t border-[var(--border-color)]">
+                     <Activity className="w-3 h-3 text-[var(--secondary)]" />
+                     <p className="text-[11px] text-[var(--secondary)] uppercase tracking-wider font-semibold">
+                      Processed by: {clinicalData.source === 'gemini-ai' ? 'Gemini AI' : 'Keyword Extraction'}
+                    </p>
+                  </div>
+                )}
+               </div>
+            </div>
           </motion.div>
         )}
 

@@ -40,16 +40,16 @@ const runNlpScript = (text, age) => {
 };
 
 const generateAiSummary = async (symptoms) => {
-  if (process.env.XAI_API_KEY) {
+  if (process.env.GEMINI_API_KEY) {
     try {
-      // Use Grok API (xAI) - OpenAI SDK compatible
-      const grok = new OpenAI({
-        apiKey: process.env.XAI_API_KEY,
-        baseURL: 'https://api.x.ai/v1',
+      // Use Google Gemini API - OpenAI SDK compatible
+      const gemini = new OpenAI({
+        apiKey: process.env.GEMINI_API_KEY,
+        baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
       });
 
-      const completion = await grok.chat.completions.create({
-        model: "grok-3-mini",
+      const completion = await gemini.chat.completions.create({
+        model: "gemini-2.0-flash",
         messages: [
           {
             role: "system",
@@ -64,7 +64,7 @@ const generateAiSummary = async (symptoms) => {
 
       return completion.choices[0].message.content;
     } catch (error) {
-      console.error("Grok AI summary error:", error.message);
+      console.error("Gemini AI summary error:", error.message);
       // Fallback to basic summary if API call fails
       return `AI Generated Summary: The patient presents with ${symptoms.substring(0, 50)}... and requires clinical review based on the severity profile calculated.`;
     }

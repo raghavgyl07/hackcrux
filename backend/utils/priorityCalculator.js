@@ -1,8 +1,8 @@
 /**
  * priorityCalculator.js
  * 
- * AI-Powered Patient Triage Priority System using Grok LLM API.
- * Falls back to local keyword-based scoring when XAI_API_KEY is not available.
+ * AI-Powered Patient Triage Priority System using Google Gemini API.
+ * Falls back to local keyword-based scoring when GEMINI_API_KEY is not available.
  */
 
 const OpenAI = require('openai');
@@ -13,73 +13,162 @@ const OpenAI = require('openai');
 const PRIORITY_LEVELS = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 const LEVEL_MAP = { 'CRITICAL': 4, 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
 
-// ═══════════════════════════════════════════════════════
-// GROK AI PRIORITY ASSIGNMENT
-// ═══════════════════════════════════════════════════════
-async function assignPriority(age, symptoms, registrationTime) {
-  // Try Grok API first
-  if (process.env.XAI_API_KEY) {
+const DEPARTMENTS = [
+  'Cardiology', 'Orthopedics', 'Dermatology', 'Neurology', 
+  'Pulmonology', 'General Medicine', 'Emergency Medicine', 'ENT'
+];
+
+async function assignPriority(age, symptoms, registrationTime, visualFindings = null, historicalExamples = []) {
+  // Try Gemini API first
+  if (process.env.GEMINI_API_KEY) {
     try {
-      const grok = new OpenAI({
-        apiKey: process.env.XAI_API_KEY,
-        baseURL: 'https://api.x.ai/v1',
+      const gemini = new OpenAI({
+        apiKey: process.env.GEMINI_API_KEY,
+        baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
       });
 
-      const completion = await grok.chat.completions.create({
-        model: "grok-3-mini",
+      const visionContext = visualFindings && visualFindings.length > 0
+        ? `\nVisual findings from image: ${visualFindings.join(', ')}`
+        : "";
+
+      // Format historical examples for the few-shot section
+      const examplesContext = historicalExamples.length > 0
+        ? "\n\n### HISTORICAL EXAMPLES (Few-Shot Examples)\n" + historicalExamples.map((ex, i) => `
+Example Case ${i + 1}:
+Symptoms: ${ex.symptoms}
+Visual Findings: ${ex.visual_findings || 'None'}
+Priority: ${ex.priority}
+Department: ${ex.department}`).join('\n')
+        : "";
+
+      const completion = await gemini.chat.completions.create({
+        model: "gemini-2.0-flash",
         messages: [
           {
             role: "system",
-            content: `You are a hospital triage AI. Given a patient's age and symptoms, classify the medical urgency.
+            content: `You are an expert hospital triage AI. Your goal is to assign the correct medical urgency (PRIORITY) and hospital DEPARTMENT based on patient symptoms, visual findings from uploaded images, and historical context.
 
-Reply with ONLY one word — the priority level. No explanation. No punctuation.
+### PRIORITY DEFINITIONS:
+- CRITICAL: Life-threatening symptoms (severe chest pain, stroke signs, heavy bleeding, difficulty breathing, loss of consciousness).
+- HIGH: Serious symptoms requiring urgent care (high fever, severe pain, head injury).
+- MEDIUM: Moderate symptoms requiring doctor attention (vomiting, dizziness, minor infections).
+- LOW: Minor symptoms (common cold, mild headache, minor cuts).
 
-Priority levels:
-CRITICAL — Immediate life-threatening: chest pain, breathing difficulty, stroke symptoms, severe bleeding, loss of consciousness, seizures
-HIGH — Serious/urgent: high fever with weakness, severe abdominal pain, persistent vomiting, head injury, elderly patient (>65) with concerning symptoms
-MEDIUM — Moderate: fever, moderate pain, vomiting, dizziness, minor infections
-LOW — Non-urgent: mild headache, common cold, minor cuts, mild cough`
+### DEPARTMENT GUIDELINES:
+- Cardiology: Chest pain, heart-related issues.
+- Orthopedics: Bone fractures, joint injuries, musculoskeletal pain.
+- Dermatology: Skin rashes, infections, burns, lesions.
+- Neurology: Headaches, seizures, paralysis, stroke symptoms.
+- Pulmonology: Lung issues, persistent cough, chronic respiratory problems.
+- General Medicine: Fever, infections, common ailments.
+- Emergency Medicine: Trauma, severe accidents, immediate life-threats.
+- ENT: Ear, nose, throat, sinus issues.
+
+### SAFETY RULES:
+1. If symptoms indicate an EMERGENCY, ALWAYS choose CRITICAL.
+2. If confidence is low, choose HIGHER urgency to ensure patient safety.
+3. NEVER output a department that is not in the list.
+4. Always provide valid JSON.${examplesContext}`
           },
           {
             role: "user",
-            content: `Patient age: ${age}\nSymptoms: ${symptoms}`
+            content: `Analyze this patient case:
+Patient Age: ${age}
+Symptoms: ${symptoms}${visionContext}
+
+Reply with ONLY a JSON object:
+{
+  "priority": "LEVEL", 
+  "department": "DEPARTMENT", 
+  "visual_findings": ["findings extracted from visual findings input if any"], 
+  "risk_indicators": ["potential risks"], 
+  "reason": "Clear clinical reasoning based on inputs and historical patterns"
+}`
           }
         ],
         temperature: 0,
-        max_tokens: 10,
+        response_format: { type: "json_object" }
       });
 
-      const response = completion.choices[0].message.content.trim().toUpperCase();
+      const response = JSON.parse(completion.choices[0].message.content);
+      const priority = response.priority?.toUpperCase();
+      const department = response.department;
       
-      // Validate the response is one of the valid levels
-      if (PRIORITY_LEVELS.includes(response)) {
+      if (PRIORITY_LEVELS.includes(priority)) {
         return {
-          priority: response,
-          score: LEVEL_MAP[response],
-          source: 'grok-ai'
+          priority,
+          score: LEVEL_MAP[priority],
+          department: DEPARTMENTS.includes(department) ? department : 'General Medicine',
+          reason: response.reason || '',
+          risk_indicators: response.risk_indicators || [],
+          visualFindings: response.visual_findings || visualFindings || [],
+          source: 'gemini-ai'
         };
       }
-      
-      // If Grok returned something unexpected, try to extract the level
-      for (const level of PRIORITY_LEVELS) {
-        if (response.includes(level)) {
-          return {
-            priority: level,
-            score: LEVEL_MAP[level],
-            source: 'grok-ai'
-          };
+    } catch (error) {
+      // Auto-retry on rate limit (429) for free-tier Gemini
+      if (error.status === 429) {
+        console.warn('Gemini rate limit hit, retrying in 3s...');
+        await new Promise(r => setTimeout(r, 3000));
+        try {
+          const geminiRetry = new OpenAI({
+            apiKey: process.env.GEMINI_API_KEY,
+            baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+          });
+          const retryCompletion = await geminiRetry.chat.completions.create({
+            model: "gemini-2.0-flash",
+            messages: [
+              { role: "system", content: "You are a hospital triage AI. Classify urgency and department. Reply with ONLY JSON: {\"priority\":\"LEVEL\",\"department\":\"DEPT\",\"reason\":\"...\",\"risk_indicators\":[],\"visual_findings\":[]}" },
+              { role: "user", content: `Age: ${age}, Symptoms: ${symptoms}` }
+            ],
+            temperature: 0,
+            response_format: { type: "json_object" }
+          });
+          const retryResp = JSON.parse(retryCompletion.choices[0].message.content);
+          const retryPriority = retryResp.priority?.toUpperCase();
+          if (PRIORITY_LEVELS.includes(retryPriority)) {
+            return {
+              priority: retryPriority,
+              score: LEVEL_MAP[retryPriority],
+              department: DEPARTMENTS.includes(retryResp.department) ? retryResp.department : 'General Medicine',
+              reason: retryResp.reason || '',
+              risk_indicators: retryResp.risk_indicators || [],
+              visualFindings: retryResp.visual_findings || visualFindings || [],
+              source: 'gemini-ai'
+            };
+          }
+        } catch (retryErr) {
+          console.error('Gemini retry also failed:', retryErr.message);
         }
       }
-      
-      // Fall through to local scoring
-      console.warn('Grok returned unexpected response:', response);
-    } catch (error) {
-      console.error('Grok API error, falling back to local scoring:', error.message);
+      console.error('Gemini API error, falling back to local scoring:', error.message);
     }
   }
 
   // Fallback: local keyword-based scoring
-  return assignPriorityLocal(age, symptoms);
+  const localResult = assignPriorityLocal(age, symptoms);
+  
+  // Basic department keyword mapping for local fallback
+  let department = 'General Medicine';
+  
+  // Use regex with word boundaries to avoid partial matches like "years" matching "ear"
+  const matches = (keywords) => {
+    const text = (symptoms || '').toLowerCase();
+    return keywords.some(k => new RegExp(`\\b${k}\\b`, 'i').test(text));
+  };
+
+  if (matches(['chest', 'heart', 'cardiac', 'palpitations'])) department = 'Cardiology';
+  else if (matches(['brain', 'stroke', 'head', 'seizure', 'paralysis'])) department = 'Neurology';
+  else if (matches(['bone', 'fracture', 'leg', 'arm', 'back', 'joint', 'knee', 'shoulder'])) department = 'Orthopedics';
+  else if (matches(['skin', 'rash', 'itch', 'burn', 'acne'])) department = 'Dermatology';
+  else if (matches(['breath', 'lung', 'cough', 'shortness', 'respiratory', 'asthma'])) department = 'Pulmonology';
+  else if (matches(['trauma', 'accident', 'bleeding', 'stab', 'unconscious'])) department = 'Emergency Medicine';
+  else if (matches(['ear', 'nose', 'throat', 'sinus', 'tonsil'])) department = 'ENT';
+
+  return {
+    ...localResult,
+    department
+  };
 }
 
 // ═══════════════════════════════════════════════════════

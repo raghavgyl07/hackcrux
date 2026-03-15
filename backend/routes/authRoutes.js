@@ -1,40 +1,110 @@
 const express = require('express');
 const router = express.Router();
-const bcrypt = require('bcryptjs');
 const db = require('../config/db');
 
-// Basic register (for testing/setup)
-router.post('/register', async (req, res) => {
-  const { name, email, password, role } = req.body;
-  if (!name || !email || !password || !role) return res.status(400).json({ error: 'All fields required' });
+// Email validation regex
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Login Flow: Check email existence
+router.post('/login', async (req, res) => {
+  const { email } = req.body;
+
+  if (!email || !emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Please enter a valid email address.' });
+  }
 
   try {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    db.run(
-      `INSERT INTO Users (name, email, password, role) VALUES (?, ?, ?, ?)`,
-      [name, email, hashedPassword, role],
-      function (err) {
-        if (err) return res.status(400).json({ error: err.message });
-        res.status(201).json({ id: this.lastID, name, email, role });
-      }
-    );
+    let user;
+    if (db.isSupabase) {
+      const { data, error } = await db
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') throw error; // PGRST116 is code for "no rows found"
+      user = data;
+    } else {
+      user = await new Promise((resolve, reject) => {
+        db.get(`SELECT * FROM Users WHERE email = ?`, [email], (err, row) => {
+          if (err) reject(err);
+          else resolve(row);
+        });
+      });
+    }
+
+    if (!user) {
+      return res.status(404).json({ 
+        message: 'Hi 👋 Looks like you’re new. Create an account to continue.',
+        isNewUser: true 
+      });
+    }
+
+    res.json({ 
+      message: 'Welcome back!', 
+      user: { id: user.id || user.email, email: user.email, name: user.name, role: user.role } 
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Login
-router.post('/login', (req, res) => {
-  const { email, password, role } = req.body;
-  db.get(`SELECT * FROM Users WHERE email = ? AND role = ?`, [email, role], async (err, user) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (!user) return res.status(401).json({ error: 'Invalid credentials or role' });
+// Signup Flow: Create new account
+router.post('/signup', async (req, res) => {
+  const { name, email, role } = req.body;
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(401).json({ error: 'Invalid credentials or role' });
+  if (!email || !emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Please enter a valid email address.' });
+  }
+  if (!name || !role) {
+    return res.status(400).json({ error: 'All fields (name, email, role) are required.' });
+  }
 
-    res.json({ message: 'Logged in successfully', user: { id: user.id, email: user.email, name: user.name, role: user.role } });
-  });
+  try {
+    let user;
+    if (db.isSupabase) {
+      const { data, error } = await db
+        .from('users')
+        .insert([{ name, email, role }])
+        .select('id, name, email, role')
+        .single();
+
+      if (error) {
+        if (error.code === '23505') return res.status(400).json({ error: 'Email already registered' });
+        throw error;
+      }
+      user = data;
+    } else {
+      user = await new Promise((resolve, reject) => {
+        db.run(
+          `INSERT INTO Users (name, email, role) VALUES (?, ?, ?)`,
+          [name, email, role],
+          function(err) {
+            if (err) {
+              if (err.message.includes('UNIQUE')) return reject({ status: 400, message: 'Email already registered' });
+              return reject(err);
+            }
+            resolve({ id: this.lastID, name, email, role });
+          }
+        );
+      });
+    }
+
+    res.status(201).json({
+      message: 'Account created successfully!',
+      user
+    });
+  } catch (error) {
+    const status = error.status || 500;
+    res.status(status).json({ error: error.message });
+  }
+});
+
+// Get Current User (Session Helper)
+router.get('/user', async (req, res) => {
+  // In a real app, this would use sessions/cookies/JWT
+  // For this version, we expect the frontend to pass context
+  res.status(404).json({ error: 'Session not found. Please log in.' });
 });
 
 module.exports = router;
