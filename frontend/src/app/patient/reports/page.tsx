@@ -24,15 +24,26 @@ function PatientReportsContent() {
   const [loading, setLoading] = useState(true);
   
   const searchParams = useSearchParams();
-  const email = searchParams.get("email") || "patient@example.com";
+  const [email, setEmail] = useState("");
 
   useEffect(() => {
-    fetchReports();
-  }, [email]);
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    const paramEmail = searchParams.get("email");
+    const sessionEmail = user.email;
+    
+    // Priority: 1. Query Param, 2. LocalStorage, 3. Default
+    const finalEmail = paramEmail || sessionEmail || "patient@example.com";
+    setEmail(finalEmail);
+    
+    if (finalEmail) {
+      fetchReports(finalEmail);
+    }
+  }, [searchParams]);
 
-  const fetchReports = async () => {
+  const fetchReports = async (emailToFetch: string) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/patient/reports?email=${encodeURIComponent(email)}`);
+      setLoading(true);
+      const res = await fetch(`${API_BASE_URL}/api/patient/reports?email=${encodeURIComponent(emailToFetch)}`);
       if (res.ok) {
         setReports(await res.json());
       }

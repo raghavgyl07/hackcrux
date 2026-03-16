@@ -113,9 +113,14 @@ function PatientSubmitContent() {
       <div className="absolute bottom-10 left-[-10%] w-[300px] h-[300px] bg-[var(--primary-gradient-start)]/5 blur-[120px] rounded-full pointer-events-none" />
       
       <div className="max-w-3xl mx-auto relative z-10 pt-4">
-        <button onClick={() => router.push("/")} className="absolute top-4 left-0 flex items-center text-[var(--secondary)] hover:text-[var(--primary-gradient-start)] transition-colors font-medium text-sm border hover:border-[var(--primary-gradient-start)]/30 px-3 py-1.5 rounded-full">
-          <ArrowLeft className="w-4 h-4 mr-2" /> Go Back
-        </button>
+        <div className="flex justify-between items-center mb-6">
+          <button onClick={() => router.push("/")} className="flex items-center text-[var(--secondary)] hover:text-[var(--primary-gradient-start)] transition-colors font-medium text-sm border hover:border-[var(--primary-gradient-start)]/30 px-3 py-1.5 rounded-full">
+            <ArrowLeft className="w-4 h-4 mr-2" /> Go Back
+          </button>
+          <Link href={`/patient/reports?email=${encodeURIComponent(email)}`} className="flex items-center text-[var(--primary-gradient-start)] hover:text-[var(--primary-gradient-end)] transition-colors font-medium text-sm border border-[var(--primary-gradient-start)]/20 hover:border-[var(--primary-gradient-start)]/40 px-3 py-1.5 rounded-full bg-[var(--primary-gradient-start)]/5">
+            <FileText className="w-4 h-4 mr-2" /> View My Reports
+          </Link>
+        </div>
 
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-10 mt-16">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--primary-gradient-start)]/10 to-[var(--primary-gradient-end)]/10 border border-[var(--primary-gradient-start)]/20 mb-6 shadow-sm">
