@@ -58,6 +58,7 @@ router.post('/signup', async (req, res) => {
       .single();
 
     if (error) {
+      console.error('Signup Supabase Error:', JSON.stringify(error, null, 2));
       if (error.code === '23505') return res.status(400).json({ error: 'Email already registered' });
       throw error;
     }
@@ -69,7 +70,13 @@ router.post('/signup', async (req, res) => {
     });
   } catch (error) {
     const status = error.status || 500;
-    res.status(status).json({ error: error.message });
+    console.error('Auth Route Error:', error);
+    res.status(status).json({ 
+      error: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code
+    });
   }
 });
 

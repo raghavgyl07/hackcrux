@@ -98,7 +98,11 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
   
   try {
     // Requires OPENAI_API_KEY in .env
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY is missing in backend environment');
+    }
+    const openai = new OpenAI({ apiKey });
     const transcription = await openai.audio.transcriptions.create({
       file: fs.createReadStream(req.file.path),
       model: "whisper-1",

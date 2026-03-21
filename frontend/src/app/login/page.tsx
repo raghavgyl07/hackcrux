@@ -51,49 +51,46 @@ export default function UnifiedLogin() {
 
     setLoading(true);
     try {
-      // 1. Try Doctor specialized login first if it looks like a hospital email
-      // or if the user intends to log in as a doctor
-      const doctorRes = await fetch(`${API_BASE_URL}/api/doctor/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
+      // Run both checks in parallel for maximum speed
+      const [doctorRes, generalRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/doctor/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        }),
+        fetch(`${API_BASE_URL}/api/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        })
+      ]);
 
       const doctorData = await doctorRes.json();
-
+      
+      // 1. Check if it's a known doctor first
       if (doctorRes.ok && doctorData.exists) {
-        // Known doctor
         setMessage("Welcome back, Doctor!");
         const userData = { ...doctorData.doctor, role: 'Doctor' };
         localStorage.setItem("user", JSON.stringify(userData));
-        setTimeout(() => router.push("/doctor/dashboard"), 1500);
+        router.push("/doctor/dashboard");
         return;
       }
 
-      // 2. If not a known doctor, check if it's a known general user (Patient)
-      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
+      // 2. Otherwise, handle general user (Patient) response
+      const data = await generalRes.json();
 
-      const data = await res.json();
-
-      if (res.status === 404 && data.isNewUser) {
+      if (generalRes.status === 404 && data.isNewUser) {
         setMessage(data.message);
         setShowSignup(true);
-      } else if (res.ok) {
-        // Welcome back logic for general users
+      } else if (generalRes.ok) {
         setMessage("Welcome back!");
         localStorage.setItem("user", JSON.stringify(data.user));
         
-        setTimeout(() => {
-          if (data.user.role === "Doctor") {
-            router.push("/doctor/dashboard");
-          } else {
-            router.push(`/patient/submit?email=${encodeURIComponent(email)}`);
-          }
-        }, 1500);
+        if (data.user.role === "Doctor") {
+          router.push("/doctor/dashboard");
+        } else {
+          router.push(`/patient/submit?email=${encodeURIComponent(email)}`);
+        }
       } else {
         setError(data.error || "An error occurred");
       }
@@ -135,7 +132,7 @@ export default function UnifiedLogin() {
 
         setMessage("Doctor account created! Redirecting...");
         localStorage.setItem("user", JSON.stringify({ ...docData.doctor, name, role: "Doctor" }));
-        setTimeout(() => router.push("/doctor/dashboard"), 1500);
+        router.push("/doctor/dashboard");
         return;
       }
 
@@ -152,11 +149,10 @@ export default function UnifiedLogin() {
         setMessage("Account created! Redirecting...");
         localStorage.setItem("user", JSON.stringify(data.user));
         
-        setTimeout(() => {
-          router.push(`/patient/submit?email=${encodeURIComponent(email)}`);
-        }, 1500);
+        router.push(`/patient/submit?email=${encodeURIComponent(email)}`);
       } else {
-        setError(data.error || "Signup failed");
+        const fullError = data.hint ? `${data.error} (Hint: ${data.hint})` : data.error;
+        setError(fullError || "Signup failed");
       }
     } catch (err: any) {
       setError(err.message || "Connection failed.");
